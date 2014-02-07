@@ -108,7 +108,7 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
     else:
         # For when namespace = None
         namespace = ''
-    newelement = etree.Element(namespace+tagname, nsmap=namespacemap)
+    newelement = etree.Element(namespace + tagname, nsmap=namespacemap)
     # Add attributes with namespaces
     if attributes:
         # If they haven't bothered setting attribute namespace, use an empty
@@ -121,10 +121,10 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
             else:
                 attributenamespace = ''
         else:
-            attributenamespace = '{'+nsprefixes[attrnsprefix]+'}'
+            attributenamespace = '{' + nsprefixes[attrnsprefix] + '}'
 
         for tagattribute in attributes:
-            newelement.set(attributenamespace+tagattribute,
+            newelement.set(attributenamespace + tagattribute,
                            attributes[tagattribute])
     if tagtext:
         newelement.text = tagtext
@@ -282,7 +282,7 @@ def heading(headingtext, headinglevel, lang='en'):
     paragraph = makeelement('p')
     pr = makeelement('pPr')
     pStyle = makeelement(
-        'pStyle', attributes={'val': lmap[lang]+str(headinglevel)})
+        'pStyle', attributes={'val': lmap[lang] + str(headinglevel)})
     run = makeelement('r')
     text = makeelement('t', tagtext=headingtext)
     # Add the text the run, and the run to the paragraph
@@ -432,12 +432,15 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0,
 
 
 def picture(
-        relationshiplist, picname, picdescription, pixelwidth=None,
+        relationshiplist, picpath, picdescription, pixelwidth=None,
         pixelheight=None, nochangeaspect=True, nochangearrowheads=True,
-        imagefiledict=None):
+        imagefiledict=None, width_cm=None, height_cm=None):
     """
     Take a relationshiplist, picture file name, and return a paragraph
     containing the image and an updated relationshiplist
+
+    @param int width_cm: width of the picture in centimeters
+    @param int width_cm: height of the picture in centimeters
     """
     if imagefiledict is None:
         warn(
@@ -451,7 +454,7 @@ def picture(
 
     # Set relationship ID to that of the image or the first available one
     picid = '2'
-    picpath = abspath(picname)
+    picname = os.path.split(picpath)[1]
 
     if imagefiledict is not None:
         # Keep track of the image files in a separate dictionary so they don't
@@ -480,7 +483,7 @@ def picture(
         media_dir = join(template_dir, 'word', 'media')
         if not os.path.isdir(media_dir):
             os.mkdir(media_dir)
-        shutil.copyfile(picname, join(media_dir, picname))
+        shutil.copyfile(picpath, join(media_dir, picname))
 
     image = Image.open(picpath)
 
@@ -512,10 +515,31 @@ def picture(
         pixelwidth, pixelheight = pixelheight, pixelwidth
 
     # OpenXML measures on-screen objects in English Metric Units
-    # 1cm = 36000 EMUs
+    # 1cm = 360000 EMUs
     emuperpixel = 12700
-    width = str(pixelwidth * emuperpixel)
-    height = str(pixelheight * emuperpixel)
+    # calculate width of unscaled image in EMU's
+    width_unscaled = pixelwidth * emuperpixel
+    height_unscaled = pixelheight * emuperpixel
+
+    # do not scale
+    if width_cm is None and height_cm is None:
+        width = str(width_unscaled)
+        height = str(height_unscaled)
+    # scale while keeping aspect ratio
+    elif width_cm is not None and height_cm is None:
+        width_scaled = width_cm * 360000
+        scaling = float(width_scaled) / float(width_unscaled)
+        height = str(int(scaling * height_unscaled))
+        width = str(width_scaled)
+    elif width_cm is None and height_cm is not None:
+        height_scaled = height_cm * 360000
+        scaling = float(height_scaled) / float(height_unscaled)
+        width = str(int(scaling * width_unscaled))
+        height = str(height_scaled)
+    # scale width and height
+    else:
+        width = str(width_cm * 360000)
+        height = str(height_cm * 360000)
 
     # There are 3 main elements inside a picture
     # 1. The Blipfill - specifies how the image fills the picture area
@@ -736,14 +760,14 @@ def AdvSearch(document, search, bs=3):
                 # s = search start
                 # e = element IDs to merge
                 found = False
-                for l in range(1, len(searchels)+1):
+                for l in range(1, len(searchels) + 1):
                     if found:
                         break
                     for s in range(len(searchels)):
                         if found:
                             break
-                        if s+l <= len(searchels):
-                            e = range(s, s+l)
+                        if s + l <= len(searchels):
+                            e = range(s, s + l)
                             txtsearch = ''
                             for k in e:
                                 txtsearch += searchels[k].text
@@ -823,16 +847,16 @@ def advReplace(document, search, replace, bs=3):
                 # s = search start
                 # e = element IDs to merge
                 found = False
-                for l in range(1, len(searchels)+1):
+                for l in range(1, len(searchels) + 1):
                     if found:
                         break
-                    #print "slen:", l
+                    # print "slen:", l
                     for s in range(len(searchels)):
                         if found:
                             break
-                        if s+l <= len(searchels):
-                            e = range(s, s+l)
-                            #print "elems:", e
+                        if s + l <= len(searchels):
+                            e = range(s, s + l)
+                            # print "elems:", e
                             txtsearch = ''
                             for k in e:
                                 txtsearch += searchels[k].text
@@ -889,7 +913,7 @@ def advReplace(document, search, replace, bs=3):
                                                 '{%s}p' % nsprefixes['w'])
                                             searchels[i].text = re.sub(
                                                 search, '', txtsearch)
-                                            insindex = p.getparent().index(p)+1
+                                            insindex = p.getparent().index(p) + 1
                                             for r in replace:
                                                 p.getparent().insert(
                                                     insindex, r)
@@ -914,7 +938,7 @@ def getdocumenttext(document):
     paralist = []
     for element in document.iter():
         # Find p (paragraph) elements
-        if element.tag == '{'+nsprefixes['w']+'}p':
+        if element.tag == '{' + nsprefixes['w'] + '}p':
             paralist.append(element)
     # Since a single sentence might be spread over multiple text elements,
     # iterate through each paragraph, appending all text (t) children to that
@@ -924,10 +948,10 @@ def getdocumenttext(document):
         # Loop through each paragraph
         for element in para.iter():
             # Find t (text) elements
-            if element.tag == '{'+nsprefixes['w']+'}t':
+            if element.tag == '{' + nsprefixes['w'] + '}t':
                 if element.text:
-                    paratext = paratext+element.text
-            elif element.tag == '{'+nsprefixes['w']+'}tab':
+                    paratext = paratext + element.text
+            elif element.tag == '{' + nsprefixes['w'] + '}tab':
                 paratext = paratext + '\t'
         # Add our completed paragraph text to the list of paragraph text
         if not len(paratext) == 0:
@@ -982,7 +1006,7 @@ def appproperties():
         'mlns="http://schemas.openxmlformats.org/officeDocument/2006/extended'
         '-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocum'
         'ent/2006/docPropsVTypes"></Properties>')
-    props =\
+    props = \
         {'Template':             'Normal.dotm',
          'TotalTime':            '6',
          'Pages':                '1',
@@ -1012,7 +1036,7 @@ def websettings():
 
 
 def relationshiplist():
-    relationshiplist =\
+    relationshiplist = \
         [['http://schemas.openxmlformats.org/officeDocument/2006/'
           'relationships/numbering', 'numbering.xml'],
          ['http://schemas.openxmlformats.org/officeDocument/2006/'
@@ -1032,7 +1056,7 @@ def wordrelationships(relationshiplist):
     '''Generate a Word relationships file'''
     # Default list of relationships
     # FIXME: using string hack instead of making element
-    #relationships = makeelement('Relationships', nsprefix='pr')
+    # relationships = makeelement('Relationships', nsprefix='pr')
     relationships = etree.fromstring(
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006'
         '/relationships"></Relationships>')
@@ -1040,7 +1064,7 @@ def wordrelationships(relationshiplist):
     for relationship in relationshiplist:
         # Relationship IDs (rId) start at 1.
         rel_elm = makeelement('Relationship', nsprefix=None,
-                              attributes={'Id':     'rId'+str(count+1),
+                              attributes={'Id':     'rId' + str(count + 1),
                                           'Type':   relationship[0],
                                           'Target': relationship[1]}
                               )
